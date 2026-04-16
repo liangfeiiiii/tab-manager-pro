@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Manager Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="header-left">
+      <h1 id="greeting"></h1>
+      <div class="date" id="dateDisplay"></div>
+    </div>
+    <div class="header-right">
+      <button class="settings-btn" id="settingsBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H9a2.25 2.25 0 0 1-2.25-2.25V6a2.25 2.25 0 0 1 2.25-2.25h10.5A2.25 2.25 0 0 1 21 6v2.25a2.25 2.25 0 0 1-2.25 2.25H13.5Z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="main-content">
+    <div class="history-section" id="historySection">
+      <div class="section-header">
+        <h2>浏览历史</h2>
+        <button class="clear-history-btn" id="clearHistoryBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </button>
+      </div>
+      <div class="history-grid" id="historyGrid"></div>
+    </div>
+
+    <div class="search-bookmarks-section">
+      <div class="bookmarks-section" id="bookmarksSection">
+        <div class="bookmarks-grid" id="bookmarksGrid"></div>
+        <button class="add-bookmark-btn-small" id="addBookmarkBtn" title="添加常用网站">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="search-section">
+        <form class="google-search" action="https://www.google.com/search" method="get" target="_top">
+          <div class="search-container">
+            <img src="https://www.google.com/favicon.ico" alt="Google" class="google-icon">
+            <input type="text" name="q" placeholder="搜索 Google" class="search-input">
+            <button type="submit" class="search-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+              </svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="tabs-section" id="tabsSection">
+      <div class="section-header">
+        <h2>当前标签页</h2>
+        <div class="section-actions">
+          <button class="clear-all-tabs-btn" id="clearAllTabsBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+            清除所有
+          </button>
+          <div class="section-count" id="tabsCount"></div>
+        </div>
+      </div>
+      <div class="missions" id="tabsMissions"></div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-stats">
+      <div class="stat">
+        <div class="stat-num" id="statTabs">—</div>
+        <div class="stat-label">打开的标签页</div>
+      </div>
+    </div>
+    <div class="last-refresh">
+      <span style="color: var(--muted); font-size: 11px;">Design by liangfei</span>
+    </div>
+  </footer>
+</div>
+
+<div class="settings-modal" id="settingsModal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>设置</h2>
+      <button class="close-btn" id="closeSettingsBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-section">
+        <h3>主题设置</h3>
+        <div class="themes-grid" id="themesGrid">
+          <div class="theme-card" data-theme="light">
+            <div class="theme-preview light-theme"></div>
+            <span>浅色</span>
+          </div>
+          <div class="theme-card" data-theme="dark">
+            <div class="theme-preview dark-theme"></div>
+            <span>深色</span>
+          </div>
+          <div class="theme-card" data-theme="forest">
+            <div class="theme-preview forest-theme"></div>
+            <span>森林</span>
+          </div>
+          <div class="theme-card" data-theme="ocean">
+            <div class="theme-preview ocean-theme"></div>
+            <span>海洋</span>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>常用网站管理</h3>
+        <div class="bookmarks-list" id="bookmarksList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bookmark-modal" id="bookmarkModal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="bookmarkModalTitle">添加常用网站</h2>
+      <button class="close-btn" id="closeBookmarkBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <form id="bookmarkForm">
+        <input type="hidden" id="bookmarkId">
+        <div class="form-group">
+          <label for="bookmarkName">网站名称</label>
+          <input type="text" id="bookmarkName" required>
+        </div>
+        <div class="form-group">
+          <label for="bookmarkUrl">网站 URL</label>
+          <input type="url" id="bookmarkUrl" required>
+        </div>
+        <div class="form-group">
+          <label for="bookmarkIcon">图标 URL (可选)</label>
+          <input type="url" id="bookmarkIcon">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+  </svg>
+  <span id="toastText"></span>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
