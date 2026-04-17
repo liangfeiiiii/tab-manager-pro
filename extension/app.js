@@ -249,20 +249,22 @@ async function saveBookmarkForm(e) {
     // 编辑现有网站
     const index = bookmarks.findIndex(b => b.id === id);
     if (index !== -1) {
+      const hostname = safeGetHostname(url);
       bookmarks[index] = {
         ...bookmarks[index],
         name,
         url,
-        icon: icon || `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}`
+        icon: icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '')
       };
     }
   } else {
     // 添加新网站
+    const hostname = safeGetHostname(url);
     bookmarks.push({
       id: Date.now().toString(),
       name,
       url,
-      icon: icon || `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}`
+      icon: icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '')
     });
   }
   
@@ -318,7 +320,7 @@ async function addToHistory(tab) {
     browseHistory.unshift({
       id: Date.now().toString(),
       url: tab.url,
-      title: tab.title || new URL(tab.url).hostname,
+      title: tab.title || safeGetHostname(tab.url),
       visitedAt: new Date().toISOString()
     });
     
@@ -592,16 +594,6 @@ async function closeTabsByUrls(urls) {
   await fetchOpenTabs();
 }
 
-// 按精确URL关闭标签页
-async function closeTabsExact(urls) {
-  if (!urls || urls.length === 0) return;
-  const urlSet = new Set(urls);
-  const allTabs = await chrome.tabs.query({});
-  const toClose = allTabs.filter(t => urlSet.has(t.url)).map(t => t.id);
-  if (toClose.length > 0) await chrome.tabs.remove(toClose);
-  await fetchOpenTabs();
-}
-
 // 聚焦标签页
 async function focusTab(url) {
   if (!url) return;
@@ -744,7 +736,6 @@ function renderDomainCard(group) {
   for (const tab of tabs) urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1;
   const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1);
   const hasDupes = dupeUrls.length > 0;
-  const totalExtras = dupeUrls.reduce((s, [, c]) => s + c - 1, 0);
 
   const tabBadge = `<span class="open-tabs-badge">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>
@@ -771,12 +762,11 @@ function renderDomainCard(group) {
     const chipClass = count > 1 ? ' chip-has-dupes' : '';
     const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
+    let domain = safeGetHostname(tab.url);
     const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-      <span class="chip-text">${label}</span>${dupeTag}
+      <span class="chip-text">${escapeHtml(label)}</span>${dupeTag}
       <div class="chip-actions">
         <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="保存">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
@@ -801,7 +791,7 @@ function renderDomainCard(group) {
     <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}">
       <div class="mission-content">
         <div class="mission-top">
-          <span class="mission-name">${isLanding ? '首页' : (group.label || friendlyDomain(group.domain))}</span>
+          <span class="mission-name">${isLanding ? '首页' : escapeHtml(group.label || friendlyDomain(group.domain))}</span>
           ${tabBadge}
         </div>
         <div class="mission-pages">${pageChips}</div>
@@ -832,7 +822,6 @@ async function renderDashboard() {
   // 按域名分组
   domainGroups = [];
   const groupMap = {};
-  const landingTabs = [];
 
   for (const tab of realTabs) {
     try {
