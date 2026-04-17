@@ -6,6 +6,20 @@ let domainGroups = [];
 let bookmarks = [];
 let currentTheme = 'light';
 let browseHistory = [];
+let knownHistoryUrls = new Set(); // 追踪已记录的历史URL，避免重复写入
+
+// HTML 转义工具函数，防止 XSS
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// 安全获取 URL hostname
+function safeGetHostname(url) {
+  try { return new URL(url).hostname; } catch { return ''; }
+}
 
 // DOM 元素
 const elements = {
@@ -69,8 +83,10 @@ async function init() {
 async function loadTheme() {
   try {
     const { theme } = await chrome.storage.local.get('theme');
-    if (theme && themes[theme.name]) {
-      currentTheme = theme.name;
+    // 兼容对象格式 { name: 'light' } 和字符串格式 'light'
+    const themeName = theme ? (typeof theme === 'string' ? theme : theme.name) : '';
+    if (themeName && themes[themeName]) {
+      currentTheme = themeName;
     }
     applyTheme(currentTheme);
   } catch (err) {
@@ -142,32 +158,38 @@ async function saveBookmarks() {
 function renderBookmarks() {
   if (!elements.bookmarksGrid) return;
   
-  elements.bookmarksGrid.innerHTML = bookmarks.map(bookmark => `
-    <div class="bookmark-item" data-url="${bookmark.url}">
+  elements.bookmarksGrid.innerHTML = bookmarks.map(bookmark => {
+    const hostname = safeGetHostname(bookmark.url);
+    const iconSrc = bookmark.icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '');
+    return `
+    <div class="bookmark-item" data-url="${escapeHtml(bookmark.url)}">
       <div class="bookmark-icon">
-        <img src="${bookmark.icon || `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}`}" alt="${bookmark.name}">
+        <img src="${escapeHtml(iconSrc)}" alt="${escapeHtml(bookmark.name)}" onerror="this.style.display='none'">
       </div>
-      <span class="bookmark-name">${bookmark.name}</span>
-    </div>
-  `).join('');
+      <span class="bookmark-name">${escapeHtml(bookmark.name)}</span>
+    </div>`;
+  }).join('');
   
   // 渲染设置页面中的常用网站列表
   if (elements.bookmarksList) {
-    elements.bookmarksList.innerHTML = bookmarks.map(bookmark => `
+    elements.bookmarksList.innerHTML = bookmarks.map(bookmark => {
+      const hostname = safeGetHostname(bookmark.url);
+      const iconSrc = bookmark.icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '');
+      return `
       <div class="bookmark-item-list">
         <div class="bookmark-icon">
-          <img src="${bookmark.icon || `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}`}" alt="${bookmark.name}">
+          <img src="${escapeHtml(iconSrc)}" alt="${escapeHtml(bookmark.name)}" onerror="this.style.display='none'">
         </div>
         <div class="bookmark-info">
-          <div class="bookmark-name">${bookmark.name}</div>
-          <div class="bookmark-url">${bookmark.url}</div>
+          <div class="bookmark-name">${escapeHtml(bookmark.name)}</div>
+          <div class="bookmark-url">${escapeHtml(bookmark.url)}</div>
         </div>
         <div class="bookmark-item-actions">
           <button onclick="editBookmark('${bookmark.id}')">编辑</button>
           <button onclick="deleteBookmark('${bookmark.id}')">删除</button>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 }
 
@@ -323,22 +345,25 @@ function renderHistory() {
     return;
   }
   
-  elements.historyGrid.innerHTML = browseHistory.map(item => `
-    <div class="history-item" data-url="${item.url}">
+  elements.historyGrid.innerHTML = browseHistory.map(item => {
+    const hostname = safeGetHostname(item.url);
+    const faviconUrl = hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '';
+    return `
+    <div class="history-item" data-url="${escapeHtml(item.url)}">
       <div class="history-icon">
-        <img src="https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}" alt="">
+        ${faviconUrl ? `<img src="${escapeHtml(faviconUrl)}" alt="" onerror="this.style.display='none'">` : ''}
       </div>
       <div class="history-info">
-        <div class="history-title">${item.title}</div>
-        <div class="history-url">${new URL(item.url).hostname}</div>
+        <div class="history-title">${escapeHtml(item.title)}</div>
+        <div class="history-url">${escapeHtml(hostname)}</div>
       </div>
-      <button class="history-remove" data-id="${item.id}">
+      <button class="history-remove" data-id="${escapeHtml(item.id)}">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
       </button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 // 从历史记录中删除
@@ -774,7 +799,6 @@ function renderDomainCard(group) {
 
   return `
     <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}">
-      <div class="status-bar"></div>
       <div class="mission-content">
         <div class="mission-top">
           <span class="mission-name">${isLanding ? '首页' : (group.label || friendlyDomain(group.domain))}</span>
@@ -796,8 +820,14 @@ async function renderDashboard() {
   await fetchOpenTabs();
   const realTabs = getRealTabs();
 
-  // 添加到历史记录
-  realTabs.forEach(tab => addToHistory(tab));
+  // 添加到历史记录（仅新增的标签页）
+  realTabs.forEach(tab => {
+    const url = tab.url || '';
+    if (url && !knownHistoryUrls.has(url)) {
+      knownHistoryUrls.add(url);
+      addToHistory(tab);
+    }
+  });
 
   // 按域名分组
   domainGroups = [];
@@ -968,6 +998,7 @@ function setupEventListeners() {
       await fetchOpenTabs();
 
       playCloseSound();
+      showToast('标签页已关闭');
 
       const chip = actionEl.closest('.page-chip');
       if (chip) {
@@ -986,10 +1017,11 @@ function setupEventListeners() {
             }
           });
         }, 200);
+        // 延迟重渲染，让动画先完成
+        setTimeout(() => renderDashboard(), 500);
+      } else {
+        await renderDashboard();
       }
-
-      await renderDashboard();
-      showToast('标签页已关闭');
       return;
     }
 
@@ -1013,9 +1045,11 @@ function setupEventListeners() {
         chip.style.opacity = '0';
         chip.style.transform = 'scale(0.8)';
         setTimeout(() => chip.remove(), 200);
+        // 延迟重渲染，让动画先完成
+        setTimeout(() => renderDashboard(), 300);
+      } else {
+        await renderDashboard();
       }
-
-      await renderDashboard();
       return;
     }
 
@@ -1033,13 +1067,16 @@ function setupEventListeners() {
       playCloseSound();
 
       const card = actionEl.closest('.mission-card');
-      if (card) {
-        animateCardOut(card);
-      }
-
-      await renderDashboard();
       const groupLabel = group.domain === '__landing-pages__' ? '首页' : (group.label || friendlyDomain(group.domain));
       showToast(`已关闭 ${urls.length} 个来自 ${groupLabel} 的标签页`);
+
+      if (card) {
+        animateCardOut(card);
+        // 延迟重渲染，让卡片关闭动画先完成（animateCardOut 内部 300ms）
+        setTimeout(() => renderDashboard(), 500);
+      } else {
+        await renderDashboard();
+      }
       return;
     }
   });
@@ -1055,6 +1092,33 @@ function setupEventListeners() {
       }
     }
   });
+
+  // 历史记录和常用网站点击事件（合并为一个监听器）
+  document.addEventListener('click', function(e) {
+    // 历史记录删除按钮
+    const historyRemove = e.target.closest('.history-remove');
+    if (historyRemove) {
+      e.stopPropagation();
+      const id = historyRemove.dataset.id;
+      if (id) removeFromHistory(id);
+      return;
+    }
+
+    // 历史记录项点击跳转
+    const historyItem = e.target.closest('.history-item');
+    if (historyItem) {
+      const url = historyItem.dataset.url;
+      if (url) window.open(url, '_top');
+      return;
+    }
+
+    // 常用网站项点击跳转
+    const bookmarkItem = e.target.closest('.bookmark-item');
+    if (bookmarkItem) {
+      const url = bookmarkItem.dataset.url;
+      if (url) window.open(url, '_top');
+    }
+  });
 }
 
 // 初始化应用
@@ -1064,44 +1128,3 @@ init();
 window.editBookmark = editBookmark;
 window.deleteBookmark = deleteBookmark;
 window.removeFromHistory = removeFromHistory;
-
-// 确保历史记录和常用网站可以点击
-  document.addEventListener('DOMContentLoaded', function() {
-    // 为历史记录项添加点击事件
-    document.addEventListener('click', function(e) {
-      const historyItem = e.target.closest('.history-item');
-      if (historyItem) {
-        // 检查是否点击了删除按钮
-        const historyRemove = e.target.closest('.history-remove');
-        if (!historyRemove) {
-          const url = historyItem.getAttribute('data-url') || historyItem.dataset.url;
-          if (url) {
-            window.open(url, '_top');
-          }
-        }
-      }
-    });
-    
-    // 为历史记录删除按钮添加点击事件
-    document.addEventListener('click', function(e) {
-      const historyRemove = e.target.closest('.history-remove');
-      if (historyRemove) {
-        e.stopPropagation();
-        const id = historyRemove.getAttribute('data-id') || historyRemove.dataset.id;
-        if (id) {
-          removeFromHistory(id);
-        }
-      }
-    });
-    
-    // 为常用网站项添加点击事件
-    document.addEventListener('click', function(e) {
-      const bookmarkItem = e.target.closest('.bookmark-item');
-      if (bookmarkItem) {
-        const url = bookmarkItem.getAttribute('data-url') || bookmarkItem.dataset.url;
-        if (url) {
-          window.open(url, '_top');
-        }
-      }
-    });
-  });

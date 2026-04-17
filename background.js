@@ -29,4 +29,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 可以在这里添加刷新标签页的逻辑
     sendResponse({ status: 'success' });
   }
+  return true; // 保持 sendResponse 通道开放，支持未来异步操作
 });
