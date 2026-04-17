@@ -1,0 +1,7 @@
+node_modules/
+*.log
+*.db
+.DS_Store
+
+# Personal config — never push to GitHub
+extension/config.local.js
