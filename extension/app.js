@@ -280,6 +280,10 @@ async function loadHistory() {
     const { browseHistory: savedHistory } = await chrome.storage.local.get('browseHistory');
     if (savedHistory && Array.isArray(savedHistory)) {
       browseHistory = savedHistory;
+      // 初始化已知历史URL集合，防止 renderDashboard 重复写入
+      savedHistory.forEach(item => {
+        if (item.url) knownHistoryUrls.add(item.url);
+      });
     } else {
       browseHistory = [];
     }
@@ -370,7 +374,10 @@ function renderHistory() {
 
 // 从历史记录中删除
 async function removeFromHistory(id) {
+  const removed = browseHistory.find(h => h.id === id);
   browseHistory = browseHistory.filter(h => h.id !== id);
+  // 从已知集合中也移除，允许该 URL 将来被重新记录
+  if (removed && removed.url) knownHistoryUrls.delete(removed.url);
   await saveHistory();
   renderHistory();
 }
@@ -379,6 +386,7 @@ async function removeFromHistory(id) {
 async function clearHistory() {
   if (confirm('确定要清空浏览历史吗？')) {
     browseHistory = [];
+    knownHistoryUrls.clear();
     await saveHistory();
     renderHistory();
     showToast('历史记录已清空');
