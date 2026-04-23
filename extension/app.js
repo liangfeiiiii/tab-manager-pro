@@ -41,6 +41,11 @@ const elements = {
   bookmarksGrid: document.getElementById('bookmarksGrid'),
   bookmarksList: document.getElementById('bookmarksList'),
   historyGrid: document.getElementById('historyGrid'),
+  savedCount: document.getElementById('savedCount'),
+  savedActiveCount: document.getElementById('savedActiveCount'),
+  savedArchivedCount: document.getElementById('savedArchivedCount'),
+  savedActiveList: document.getElementById('savedActiveList'),
+  savedArchivedList: document.getElementById('savedArchivedList'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   clearAllTabsBtn: document.getElementById('clearAllTabsBtn'),
   tabsCount: document.getElementById('tabsCount'),
@@ -630,7 +635,12 @@ async function focusTab(url) {
 async function saveTabForLater(tab) {
   try {
     const { deferred = [] } = await chrome.storage.local.get('deferred');
-    deferred.push({
+    const existingIndex = deferred.findIndex(item => !item.dismissed && item.url === tab.url);
+    if (existingIndex !== -1) {
+      deferred.splice(existingIndex, 1);
+    }
+
+    deferred.unshift({
       id: Date.now().toString(),
       url: tab.url,
       title: tab.title,
@@ -643,6 +653,116 @@ async function saveTabForLater(tab) {
   } catch (err) {
     console.error('保存标签页失败:', err);
   }
+}
+
+async function updateDeferredTabs(mutator) {
+  const { deferred = [] } = await chrome.storage.local.get('deferred');
+  const nextDeferred = mutator([...deferred]);
+  await chrome.storage.local.set({ deferred: nextDeferred });
+  return nextDeferred;
+}
+
+async function updateSavedTabState(id, updates) {
+  await updateDeferredTabs(items => items.map(item => (
+    item.id === id ? { ...item, ...updates } : item
+  )));
+}
+
+async function dismissSavedTab(id) {
+  await updateSavedTabState(id, { dismissed: true });
+}
+
+function formatSavedTime(isoString) {
+  if (!isoString) return '';
+
+  try {
+    return new Date(isoString).toLocaleString('zh-CN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return '';
+  }
+}
+
+function renderSavedItem(item, state) {
+  const hostname = safeGetHostname(item.url);
+  const title = cleanTitle(item.title || item.url || '未命名页面', hostname) || '未命名页面';
+  const savedAt = formatSavedTime(item.savedAt);
+  const itemClass = state === 'archived' ? 'saved-item is-archived' : 'saved-item';
+
+  const actionButtons = state === 'archived' ? `
+    <button class="saved-action" data-action="reopen-saved-tab" data-saved-id="${escapeHtml(item.id)}" title="重新打开">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 8.25V4.5m0 3.75H12.75m3.75 0-5.25 5.25M21 12a9 9 0 1 1-9-9" />
+      </svg>
+    </button>
+    <button class="saved-action" data-action="delete-saved-tab" data-saved-id="${escapeHtml(item.id)}" title="删除">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+      </svg>
+    </button>
+  ` : `
+    <button class="saved-action" data-action="restore-saved-tab" data-saved-id="${escapeHtml(item.id)}" title="立即处理">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+      </svg>
+    </button>
+    <button class="saved-action" data-action="complete-saved-tab" data-saved-id="${escapeHtml(item.id)}" title="标记完成">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+      </svg>
+    </button>
+    <button class="saved-action" data-action="delete-saved-tab" data-saved-id="${escapeHtml(item.id)}" title="删除">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+      </svg>
+    </button>
+  `;
+
+  return `
+    <div class="${itemClass}">
+      <div class="saved-item-main">
+        <div class="saved-item-title">${escapeHtml(title)}</div>
+        <div class="saved-item-meta">
+          <span class="saved-item-domain">${escapeHtml(hostname || item.url || '')}</span>
+          ${savedAt ? `<span>${escapeHtml(savedAt)}</span>` : ''}
+        </div>
+      </div>
+      <div class="saved-item-actions">
+        ${actionButtons}
+      </div>
+    </div>
+  `;
+}
+
+async function renderSavedTabs() {
+  if (!elements.savedActiveList || !elements.savedArchivedList) return;
+
+  const { active, archived } = await getSavedTabs();
+  const total = active.length + archived.length;
+
+  if (elements.savedCount) {
+    elements.savedCount.textContent = total > 0 ? `${total} 条记录` : '暂时为空';
+  }
+
+  if (elements.savedActiveCount) {
+    elements.savedActiveCount.textContent = `${active.length} 条`;
+  }
+
+  if (elements.savedArchivedCount) {
+    elements.savedArchivedCount.textContent = `${archived.length} 条`;
+  }
+
+  elements.savedActiveList.innerHTML = active.length > 0
+    ? active.map(item => renderSavedItem(item, 'active')).join('')
+    : '<div class="saved-empty">把标签页先存起来，晚点再回来处理。</div>';
+
+  elements.savedArchivedList.innerHTML = archived.length > 0
+    ? archived.slice(0, 6).map(item => renderSavedItem(item, 'archived')).join('')
+    : '<div class="saved-empty">处理完的页面会出现在这里。</div>';
 }
 
 // 获取保存的标签页
@@ -818,6 +938,8 @@ async function renderDashboard() {
   await fetchOpenTabs();
   const realTabs = getRealTabs();
 
+  await renderSavedTabs();
+
   // 添加到历史记录（仅新增的标签页）
   realTabs.forEach(tab => {
     const url = tab.url || '';
@@ -867,7 +989,7 @@ async function renderDashboard() {
   }
 
   // 页脚统计
-  if (elements.statTabs) elements.statTabs.textContent = openTabs.length;
+  if (elements.statTabs) elements.statTabs.textContent = realTabs.length;
 }
 
 // 获取问候语
@@ -1047,6 +1169,56 @@ function setupEventListeners() {
       } else {
         await renderDashboard();
       }
+      return;
+    }
+
+    if (action === 'restore-saved-tab') {
+      e.stopPropagation();
+      const savedId = actionEl.dataset.savedId;
+      if (!savedId) return;
+
+      const { active } = await getSavedTabs();
+      const item = active.find(entry => entry.id === savedId);
+      if (!item?.url) return;
+
+      await dismissSavedTab(savedId);
+      window.open(item.url, '_top');
+      return;
+    }
+
+    if (action === 'complete-saved-tab') {
+      e.stopPropagation();
+      const savedId = actionEl.dataset.savedId;
+      if (!savedId) return;
+
+      await updateSavedTabState(savedId, { completed: true });
+      await renderSavedTabs();
+      showToast('已移到已完成');
+      return;
+    }
+
+    if (action === 'reopen-saved-tab') {
+      e.stopPropagation();
+      const savedId = actionEl.dataset.savedId;
+      if (!savedId) return;
+
+      const { archived } = await getSavedTabs();
+      const item = archived.find(entry => entry.id === savedId);
+      if (!item?.url) return;
+
+      await dismissSavedTab(savedId);
+      window.open(item.url, '_top');
+      return;
+    }
+
+    if (action === 'delete-saved-tab') {
+      e.stopPropagation();
+      const savedId = actionEl.dataset.savedId;
+      if (!savedId) return;
+
+      await dismissSavedTab(savedId);
+      await renderSavedTabs();
+      showToast('已从稍后处理移除');
       return;
     }
 
