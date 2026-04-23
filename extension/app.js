@@ -747,7 +747,7 @@ function renderDomainCard(group) {
 
   const tabBadge = `<span class="open-tabs-badge">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>
-    ${tabCount} 标签${tabCount !== 1 ? 's' : ''}
+    ${tabCount} 个标签页
   </span>`;
 
   const seen = new Set();
@@ -786,13 +786,13 @@ function renderDomainCard(group) {
     </div>`;
   }).join('') + (extraCount > 0 ? `
     <div class="page-chip page-chip-overflow">
-      <span class="chip-text">+${extraCount} 更多</span>
+      <span class="chip-text">还有 ${extraCount} 个</span>
     </div>` : '');
 
   let actionsHtml = `
     <button class="action-btn close-tabs" data-action="close-domain-tabs" data-domain-id="${stableId}">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-      关闭所有 ${tabCount} 标签
+      关闭这组的 ${tabCount} 个标签页
     </button>`;
 
   return `

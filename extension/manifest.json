@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tab Manager Pro",
   "version": "1.0.0",
-  "description": "多主题标签页管理插件，集成Google搜索和常用网站快捷方式",
+  "description": "多主题新标签页扩展，集成标签分组、Google 搜索和常用网站快捷方式",
   "permissions": ["tabs", "activeTab", "storage"],
   "chrome_url_overrides": { "newtab": "index.html" },
   "background": { "service_worker": "background.js" },
