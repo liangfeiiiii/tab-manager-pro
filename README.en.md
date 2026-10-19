@@ -6,7 +6,7 @@ Tab Manager Pro is a Chrome extension that replaces your new tab page with a pow
 
 ## Language
 
-- [中文](README.zh.md) | [English](README.en.md)
+- [中文](README.md) | [English](README.en.md)
 
 ---
 
