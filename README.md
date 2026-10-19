@@ -68,12 +68,7 @@
 git clone https://github.com/liangfeiiiii/tab-manager-pro.git
 ```
 
-然后在 Chrome 里加载它：
-
-1. 地址栏输入 `chrome://extensions` 回车
-2. 打开右上角的**开发者模式**
-3. 点**加载已解压的扩展程序**，选中仓库里的 `extension/` 文件夹
-4. 开一个新标签页，就是它了
+然后在 Chrome 里加载它。地址栏输入 `chrome://extensions` 回车，打开右上角的**开发者模式**，点**加载已解压的扩展程序**，选中仓库里的 `extension/` 文件夹。开一个新标签页，就是它了。
 
 改了代码也一样，回扩展页点刷新按钮，再开个新标签页看效果。
 
@@ -97,23 +92,13 @@ git clone https://github.com/liangfeiiiii/tab-manager-pro.git
 
 ### 其余的
 
-- **浏览历史**：最近访问的网站自动记录，可以单条删，也可以一键清空
-- **常用网站**：默认给了 Google、GitHub、YouTube、Gmail，自己加自己删，图标 URL 可换
-- **Google 搜索**：搜索框就在页面中间偏下，输入即搜
-- **四套主题**：浅色、深色、森林、海洋，选完存在本地，下次打开还在
-- **音效和纸屑**：关标签的反馈是 Web Audio 现场合成的，仓库里没有一个音频文件
-- **数据只在本地**：全部走 `chrome.storage.local`，没有后端，不上传
+浏览历史会自动记录最近访问的网站，可以单条删，也可以一键清空。常用网站默认给了 Google、GitHub、YouTube、Gmail，自己加自己删，图标 URL 也能换。搜索框就在页面中间偏下，输入即搜。四套主题是浅色、深色、森林、海洋，选完存在本地，下次打开还在。关标签的音效是 Web Audio 现场合成的，仓库里没有一个音频文件。所有数据全走 `chrome.storage.local`，没有后端，不上传。
 
 ---
 
 ## 技术栈
 
-- **清单**：Chrome Manifest V3（`chrome_url_overrides` 劫持新标签页）
-- **代码**：原生 JavaScript，没有框架，没有构建步骤，改完刷新就能看
-- **样式**：CSS 变量做主题，四套配色就是四组变量
-- **音效**：Web Audio API 振荡器合成
-- **纸屑**：JS 粒子动画 + CSS transition
-- **存储**：`chrome.storage.local`（主题、书签、历史、稍后处理）
+清单是 Chrome Manifest V3，用 `chrome_url_overrides` 劫持新标签页。代码是原生 JavaScript，没有框架，没有构建步骤，改完刷新就能看。样式靠 CSS 变量做主题，四套配色就是四组变量。音效用 Web Audio API 振荡器合成，纸屑是 JS 粒子动画加 CSS transition。存储走 `chrome.storage.local`，主题、书签、历史、稍后处理都在里面。
 
 ---
 
@@ -137,12 +122,7 @@ tab-manager-pro/
 
 ## 能改什么
 
-- **主题配色**：`extension/app.js` 里的 `themes` 对象定义主题名单，`extension/style.css` 里搜 `-theme` 改各主题的 CSS 变量
-- **默认书签**：`extension/background.js` 顶部的 `DEFAULT_BOOKMARKS`
-- **关标签的音效**：`extension/app.js` 里的 `playCloseSound()`，改频率和包络就是另一个声音
-- **纸屑样式**：`extension/app.js` 里的 `shootConfetti()`，颜色、数量、重力都在这
-- **分组渲染**：`extension/app.js` 里的 `renderDomainCard()`
-- **页面文案**：`extension/index.html`，包括问候语和日期位置
+想换主题配色，去 `extension/app.js` 找 `themes` 对象看主题名单，再到 `extension/style.css` 里搜 `-theme`，各主题的 CSS 变量都在那。默认书签写在 `extension/background.js` 顶部的 `DEFAULT_BOOKMARKS`。关标签的音效是 `extension/app.js` 里的 `playCloseSound()`，改频率和包络就是另一个声音。纸屑在 `shootConfetti()`，颜色、数量、重力都在这。分组卡片由 `renderDomainCard()` 渲染，页面文案（问候语、日期位置）在 `extension/index.html`。
 
 ---
 
