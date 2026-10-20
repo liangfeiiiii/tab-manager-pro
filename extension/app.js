@@ -21,6 +21,38 @@ function safeGetHostname(url) {
   try { return new URL(url).hostname; } catch { return ''; }
 }
 
+// 获取标签页所属分组域名（file 归到 local-files）
+function domainOfUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('file://')) return 'local-files';
+  try { return new URL(url).hostname; } catch { return ''; }
+}
+
+// 卡片上的域名标识
+function stableDomainId(domain) {
+  return 'domain-' + domain.replace(/[^a-z0-9]/g, '-');
+}
+
+// 生成不冲突的记录 id
+function newId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// MV3 CSP 禁止内联 onerror，图片加载失败的兜底改为渲染后挂事件
+function attachImgFallbacks(root) {
+  if (!root) return;
+  root.querySelectorAll('img').forEach(img => {
+    img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
+  });
+}
+
+// 主动关闭标签页的时间窗，期间忽略 background 的刷新广播，避免动画被重绘打断
+let selfMutationUntil = 0;
+function markSelfMutation() {
+  selfMutationUntil = Date.now() + 1000;
+}
+let refreshTimer = null;
+
 // DOM 元素
 const elements = {
   greeting: document.getElementById('greeting'),
@@ -169,12 +201,13 @@ function renderBookmarks() {
     return `
     <div class="bookmark-item" data-url="${escapeHtml(bookmark.url)}">
       <div class="bookmark-icon">
-        <img src="${escapeHtml(iconSrc)}" alt="${escapeHtml(bookmark.name)}" onerror="this.style.display='none'">
+        <img src="${escapeHtml(iconSrc)}" alt="${escapeHtml(bookmark.name)}">
       </div>
       <span class="bookmark-name">${escapeHtml(bookmark.name)}</span>
     </div>`;
   }).join('');
-  
+  attachImgFallbacks(elements.bookmarksGrid);
+
   // 渲染设置页面中的常用网站列表
   if (elements.bookmarksList) {
     elements.bookmarksList.innerHTML = bookmarks.map(bookmark => {
@@ -183,18 +216,19 @@ function renderBookmarks() {
       return `
       <div class="bookmark-item-list">
         <div class="bookmark-icon">
-          <img src="${escapeHtml(iconSrc)}" alt="${escapeHtml(bookmark.name)}" onerror="this.style.display='none'">
+          <img src="${escapeHtml(iconSrc)}" alt="${escapeHtml(bookmark.name)}">
         </div>
         <div class="bookmark-info">
           <div class="bookmark-name">${escapeHtml(bookmark.name)}</div>
           <div class="bookmark-url">${escapeHtml(bookmark.url)}</div>
         </div>
         <div class="bookmark-item-actions">
-          <button onclick="editBookmark('${bookmark.id}')">编辑</button>
-          <button onclick="deleteBookmark('${bookmark.id}')">删除</button>
+          <button data-action="edit-bookmark" data-bookmark-id="${escapeHtml(bookmark.id)}">编辑</button>
+          <button data-action="delete-bookmark" data-bookmark-id="${escapeHtml(bookmark.id)}">删除</button>
         </div>
       </div>`;
     }).join('');
+    attachImgFallbacks(elements.bookmarksList);
   }
 }
 
@@ -362,7 +396,7 @@ function renderHistory() {
     return `
     <div class="history-item" data-url="${escapeHtml(item.url)}">
       <div class="history-icon">
-        ${faviconUrl ? `<img src="${escapeHtml(faviconUrl)}" alt="" onerror="this.style.display='none'">` : ''}
+        ${faviconUrl ? `<img src="${escapeHtml(faviconUrl)}" alt="">` : ''}
       </div>
       <div class="history-info">
         <div class="history-title">${escapeHtml(item.title)}</div>
@@ -375,6 +409,7 @@ function renderHistory() {
       </button>
     </div>`;
   }).join('');
+  attachImgFallbacks(elements.historyGrid);
 }
 
 // 从历史记录中删除
@@ -404,6 +439,7 @@ async function clearAllTabs() {
     const realTabs = getRealTabs();
     if (realTabs.length > 0) {
       const tabIds = realTabs.map(tab => tab.id);
+      markSelfMutation();
       await chrome.tabs.remove(tabIds);
       playCloseSound();
       await renderDashboard();
@@ -518,11 +554,13 @@ function shootConfetti(x, y) {
 }
 
 // 动画移除卡片
-function animateCardOut(card) {
+function animateCardOut(card, withConfetti = true) {
   if (!card) return;
 
-  const rect = card.getBoundingClientRect();
-  shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  if (withConfetti) {
+    const rect = card.getBoundingClientRect();
+    shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  }
 
   card.classList.add('closing');
   setTimeout(() => {
@@ -634,25 +672,34 @@ async function focusTab(url) {
 // 保存标签页到收藏
 async function saveTabForLater(tab) {
   try {
-    const { deferred = [] } = await chrome.storage.local.get('deferred');
-    const existingIndex = deferred.findIndex(item => !item.dismissed && item.url === tab.url);
-    if (existingIndex !== -1) {
-      deferred.splice(existingIndex, 1);
-    }
+    await saveTabsForLater([tab]);
+    showToast('已收进稍后处理');
+  } catch (err) {
+    console.error('保存标签页失败:', err);
+  }
+}
 
-    deferred.unshift({
-      id: Date.now().toString(),
+// 批量保存标签页到稍后处理（同 URL 去重，靠前的为新）
+async function saveTabsForLater(tabs) {
+  const { deferred = [] } = await chrome.storage.local.get('deferred');
+  let items = [...deferred];
+  for (const tab of tabs) {
+    if (!tab.url) continue;
+    const existingIndex = items.findIndex(item => !item.dismissed && item.url === tab.url);
+    if (existingIndex !== -1) {
+      items.splice(existingIndex, 1);
+    }
+    items.unshift({
+      id: newId(),
       url: tab.url,
       title: tab.title,
       savedAt: new Date().toISOString(),
       completed: false,
       dismissed: false
     });
-    await chrome.storage.local.set({ deferred });
-    showToast('标签页已保存');
-  } catch (err) {
-    console.error('保存标签页失败:', err);
   }
+  await chrome.storage.local.set({ deferred: items });
+  return items;
 }
 
 async function updateDeferredTabs(mutator) {
@@ -668,8 +715,8 @@ async function updateSavedTabState(id, updates) {
   )));
 }
 
-async function dismissSavedTab(id) {
-  await updateSavedTabState(id, { dismissed: true });
+async function removeSavedTab(id) {
+  await updateDeferredTabs(items => items.filter(item => item.id !== id));
 }
 
 function formatSavedTime(isoString) {
@@ -858,7 +905,7 @@ function renderDomainCard(group) {
   const tabs = group.tabs || [];
   const tabCount = tabs.length;
   const isLanding = group.domain === '__landing-pages__';
-  const stableId = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-');
+  const stableId = stableDomainId(group.domain);
 
   const urlCounts = {};
   for (const tab of tabs) urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1;
@@ -893,10 +940,10 @@ function renderDomainCard(group) {
     let domain = safeGetHostname(tab.url);
     const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
       <span class="chip-text">${escapeHtml(label)}</span>${dupeTag}
       <div class="chip-actions">
-        <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="保存">
+        <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="收进稍后处理">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
         </button>
         <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="关闭">
@@ -910,13 +957,17 @@ function renderDomainCard(group) {
     </div>` : '');
 
   let actionsHtml = `
+    <button class="action-btn defer-tabs" data-action="defer-domain-tabs" data-domain-id="${stableId}">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+      收进稍后处理
+    </button>
     <button class="action-btn close-tabs" data-action="close-domain-tabs" data-domain-id="${stableId}">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
       关闭这组的 ${tabCount} 个标签页
     </button>`;
 
   return `
-    <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}">
+    <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}" data-domain="${escapeHtml(group.domain)}">
       <div class="mission-content">
         <div class="mission-top">
           <span class="mission-name">${isLanding ? '首页' : escapeHtml(group.label || friendlyDomain(group.domain))}</span>
@@ -954,20 +1005,10 @@ async function renderDashboard() {
   const groupMap = {};
 
   for (const tab of realTabs) {
-    try {
-      let hostname;
-      if (tab.url && tab.url.startsWith('file://')) {
-        hostname = 'local-files';
-      } else {
-        hostname = new URL(tab.url).hostname;
-      }
-      if (!hostname) continue;
-
-      if (!groupMap[hostname]) groupMap[hostname] = { domain: hostname, tabs: [] };
-      groupMap[hostname].tabs.push(tab);
-    } catch {
-      // 跳过无效URL
-    }
+    const hostname = domainOfUrl(tab.url);
+    if (!hostname) continue;
+    if (!groupMap[hostname]) groupMap[hostname] = { domain: hostname, tabs: [] };
+    groupMap[hostname].tabs.push(tab);
   }
 
   // 排序：按标签页数量
@@ -977,6 +1018,7 @@ async function renderDashboard() {
   if (elements.tabsMissions) {
     if (domainGroups.length > 0) {
       elements.tabsMissions.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
+      attachImgFallbacks(elements.tabsMissions);
       if (elements.tabsCount) elements.tabsCount.textContent = `${domainGroups.length} 个域名`;
     } else {
         elements.tabsMissions.innerHTML = `
@@ -1105,21 +1147,26 @@ function setupEventListeners() {
       return;
     }
 
-    // 关闭单个标签页
+    // 关闭单个标签页（同 URL 的重复标签一起关）
     if (action === 'close-single-tab') {
       e.stopPropagation();
       const tabUrl = actionEl.dataset.tabUrl;
       if (!tabUrl) return;
 
+      const chip = actionEl.closest('.page-chip');
+      const card = chip ? chip.closest('.mission-card') : null;
+
       const allTabs = await chrome.tabs.query({});
-      const match = allTabs.find(t => t.url === tabUrl);
-      if (match) await chrome.tabs.remove(match.id);
+      const matches = allTabs.filter(t => t.url === tabUrl);
+      if (matches.length > 0) {
+        markSelfMutation();
+        await chrome.tabs.remove(matches.map(m => m.id));
+      }
       await fetchOpenTabs();
 
       playCloseSound();
-      showToast('标签页已关闭');
+      showToast(matches.length > 1 ? `已关闭 ${matches.length} 个重复标签页` : '标签页已关闭');
 
-      const chip = actionEl.closest('.page-chip');
       if (chip) {
         const rect = chip.getBoundingClientRect();
         shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -1128,23 +1175,20 @@ function setupEventListeners() {
         chip.style.transform = 'scale(0.8)';
         setTimeout(() => {
           chip.remove();
-          const parentCard = document.querySelector('.mission-card:has(.mission-pages:empty)');
-          if (parentCard) animateCardOut(parentCard);
-          document.querySelectorAll('.mission-card').forEach(c => {
-            if (c.querySelectorAll('.page-chip[data-action="focus-tab"]').length === 0) {
-              animateCardOut(c);
-            }
-          });
+          // 该域名一个标签都不剩才收卡，「还有 N 个」的溢出卡不误删
+          const domain = card ? card.dataset.domain : '';
+          const remaining = getRealTabs().filter(t => domainOfUrl(t.url) === domain).length;
+          if (card && remaining === 0) animateCardOut(card, false);
         }, 200);
-        // 延迟重渲染，让动画先完成
-        setTimeout(() => renderDashboard(), 500);
+        // 等淡出和收卡动画走完再统一重绘
+        setTimeout(() => renderDashboard(), 550);
       } else {
         await renderDashboard();
       }
       return;
     }
 
-    // 保存单个标签页
+    // 收进稍后处理（同 URL 的重复标签一起收）
     if (action === 'defer-single-tab') {
       e.stopPropagation();
       const tabUrl = actionEl.dataset.tabUrl;
@@ -1154,21 +1198,67 @@ function setupEventListeners() {
       await saveTabForLater({ url: tabUrl, title: tabTitle });
 
       const allTabs = await chrome.tabs.query({});
-      const match = allTabs.find(t => t.url === tabUrl);
-      if (match) await chrome.tabs.remove(match.id);
+      const matches = allTabs.filter(t => t.url === tabUrl);
+      if (matches.length > 0) {
+        markSelfMutation();
+        await chrome.tabs.remove(matches.map(m => m.id));
+      }
       await fetchOpenTabs();
 
       const chip = actionEl.closest('.page-chip');
+      const card = chip ? chip.closest('.mission-card') : null;
       if (chip) {
         chip.style.transition = 'opacity 0.2s, transform 0.2s';
         chip.style.opacity = '0';
         chip.style.transform = 'scale(0.8)';
-        setTimeout(() => chip.remove(), 200);
-        // 延迟重渲染，让动画先完成
-        setTimeout(() => renderDashboard(), 300);
+        setTimeout(() => {
+          chip.remove();
+          const domain = card ? card.dataset.domain : '';
+          const remaining = getRealTabs().filter(t => domainOfUrl(t.url) === domain).length;
+          if (card && remaining === 0) animateCardOut(card, false);
+        }, 200);
+        setTimeout(() => renderDashboard(), 550);
       } else {
         await renderDashboard();
       }
+      return;
+    }
+
+    // 整组收进稍后处理
+    if (action === 'defer-domain-tabs') {
+      e.stopPropagation();
+      const domainId = actionEl.dataset.domainId;
+      const group = domainGroups.find(g => stableDomainId(g.domain) === domainId);
+      if (!group) return;
+
+      const tabs = group.tabs;
+      await saveTabsForLater(tabs);
+      markSelfMutation();
+      await closeTabsByUrls(tabs.map(t => t.url));
+      playCloseSound();
+
+      const uniqueCount = new Set(tabs.map(t => t.url)).size;
+      showToast(`已把 ${uniqueCount} 个页面收进稍后处理`);
+
+      const card = actionEl.closest('.mission-card');
+      if (card) {
+        animateCardOut(card, false);
+        setTimeout(() => renderDashboard(), 550);
+      } else {
+        await renderDashboard();
+      }
+      return;
+    }
+
+    if (action === 'edit-bookmark') {
+      e.stopPropagation();
+      editBookmark(actionEl.dataset.bookmarkId);
+      return;
+    }
+
+    if (action === 'delete-bookmark') {
+      e.stopPropagation();
+      await deleteBookmark(actionEl.dataset.bookmarkId);
       return;
     }
 
@@ -1181,8 +1271,8 @@ function setupEventListeners() {
       const item = active.find(entry => entry.id === savedId);
       if (!item?.url) return;
 
-      await dismissSavedTab(savedId);
-      window.open(item.url, '_top');
+      // 打开后留在待处理，由用户手动标记完成或删除
+      chrome.tabs.create({ url: item.url });
       return;
     }
 
@@ -1206,8 +1296,11 @@ function setupEventListeners() {
       const item = archived.find(entry => entry.id === savedId);
       if (!item?.url) return;
 
-      await dismissSavedTab(savedId);
-      window.open(item.url, '_top');
+      // 重新打开等于再次处理，移回待处理而不是消失
+      await updateSavedTabState(savedId, { completed: false });
+      await renderSavedTabs();
+      showToast('已移回待处理');
+      chrome.tabs.create({ url: item.url });
       return;
     }
 
@@ -1216,7 +1309,7 @@ function setupEventListeners() {
       const savedId = actionEl.dataset.savedId;
       if (!savedId) return;
 
-      await dismissSavedTab(savedId);
+      await removeSavedTab(savedId);
       await renderSavedTabs();
       showToast('已从稍后处理移除');
       return;
@@ -1225,12 +1318,11 @@ function setupEventListeners() {
     // 关闭域名下所有标签页
     if (action === 'close-domain-tabs') {
       const domainId = actionEl.dataset.domainId;
-      const group = domainGroups.find(g => {
-        return 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId;
-      });
+      const group = domainGroups.find(g => stableDomainId(g.domain) === domainId);
       if (!group) return;
 
       const urls = group.tabs.map(t => t.url);
+      markSelfMutation();
       await closeTabsByUrls(urls);
 
       playCloseSound();
@@ -1277,7 +1369,7 @@ function setupEventListeners() {
     const historyItem = e.target.closest('.history-item');
     if (historyItem) {
       const url = historyItem.dataset.url;
-      if (url) window.open(url, '_top');
+      if (url) chrome.tabs.create({ url });
       return;
     }
 
@@ -1285,15 +1377,18 @@ function setupEventListeners() {
     const bookmarkItem = e.target.closest('.bookmark-item');
     if (bookmarkItem) {
       const url = bookmarkItem.dataset.url;
-      if (url) window.open(url, '_top');
+      if (url) chrome.tabs.create({ url });
     }
+  });
+
+  // background 广播标签页变化时自动刷新
+  chrome.runtime.onMessage.addListener((message) => {
+    if (!message || message.type !== 'TABS_CHANGED') return;
+    if (Date.now() < selfMutationUntil) return;
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => { renderDashboard(); }, 300);
   });
 }
 
 // 初始化应用
 init();
-
-// 暴露全局函数
-window.editBookmark = editBookmark;
-window.deleteBookmark = deleteBookmark;
-window.removeFromHistory = removeFromHistory;

@@ -3,8 +3,9 @@
   "name": "Tab Manager Pro",
   "version": "1.0.0",
   "description": "多主题新标签页扩展，集成标签分组、Google 搜索和常用网站快捷方式",
-  "permissions": ["tabs", "activeTab", "storage"],
+  "permissions": ["tabs", "activeTab", "storage", "sidePanel"],
   "chrome_url_overrides": { "newtab": "index.html" },
+  "side_panel": { "default_path": "index.html" },
   "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "Tab Manager Pro",

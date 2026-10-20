@@ -805,7 +805,7 @@ header {
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  opacity: 0.35;
+  opacity: 0.6;
   transition: opacity 0.15s, color 0.15s, background 0.15s;
   flex-shrink: 0;
 }
@@ -902,6 +902,17 @@ header {
 .action-btn.close-tabs:hover {
   background: rgba(200, 113, 58, 0.1);
   border-color: var(--accent-amber);
+}
+
+.action-btn.defer-tabs {
+  border-color: rgba(90, 122, 98, 0.3);
+  color: var(--accent-sage);
+  background: rgba(90, 122, 98, 0.04);
+}
+
+.action-btn.defer-tabs:hover {
+  background: rgba(90, 122, 98, 0.1);
+  border-color: var(--accent-sage);
 }
 
 footer {

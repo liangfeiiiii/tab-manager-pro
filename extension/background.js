@@ -35,3 +35,23 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
     console.error('Failed to initialize extension defaults:', error);
   }
 });
+
+// 点击工具栏图标时打开侧边栏（与新标签页同一套界面）
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch(error => console.error('Failed to set side panel behavior:', error));
+
+// 标签页有变动时通知新标签页刷新
+function notifyTabsChanged() {
+  // 没有新标签页开着时没有接收方，静默失败即可
+  chrome.runtime.sendMessage({ type: 'TABS_CHANGED' }).catch(() => {});
+}
+
+chrome.tabs.onRemoved.addListener(notifyTabsChanged);
+chrome.tabs.onCreated.addListener(notifyTabsChanged);
+chrome.tabs.onActivated.addListener(notifyTabsChanged);
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  if (changeInfo.status === 'complete' || changeInfo.url || changeInfo.title) {
+    notifyTabsChanged();
+  }
+});
