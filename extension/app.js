@@ -165,14 +165,19 @@ async function loadBookmarks() {
   try {
     const { bookmarks: savedBookmarks } = await chrome.storage.local.get('bookmarks');
     if (savedBookmarks && Array.isArray(savedBookmarks)) {
-      bookmarks = savedBookmarks;
+      // 旧数据里 Gmail 图标地址取不到图，统一换成 s2 服务
+      bookmarks = savedBookmarks.map(item => (
+        item.icon === 'https://mail.google.com/favicon.ico'
+          ? { ...item, icon: 'https://www.google.com/s2/favicons?domain=mail.google.com' }
+          : item
+      ));
     } else {
       // 默认常用网站
       bookmarks = [
         { id: '1', name: 'Google', url: 'https://www.google.com', icon: 'https://www.google.com/s2/favicons?domain=google.com' },
         { id: '2', name: 'GitHub', url: 'https://github.com', icon: 'https://www.github.com/favicon.ico' },
         { id: '3', name: 'YouTube', url: 'https://www.youtube.com', icon: 'https://www.youtube.com/favicon.ico' },
-        { id: '4', name: 'Gmail', url: 'https://mail.google.com', icon: 'https://mail.google.com/favicon.ico' }
+        { id: '4', name: 'Gmail', url: 'https://mail.google.com', icon: 'https://www.google.com/s2/favicons?domain=mail.google.com' }
       ];
       await saveBookmarks();
     }
