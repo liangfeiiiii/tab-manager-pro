@@ -73,6 +73,7 @@ const elements = {
   bookmarksGrid: document.getElementById('bookmarksGrid'),
   bookmarksList: document.getElementById('bookmarksList'),
   historyGrid: document.getElementById('historyGrid'),
+  topSitesGrid: document.getElementById('topSitesGrid'),
   savedCount: document.getElementById('savedCount'),
   savedActiveCount: document.getElementById('savedActiveCount'),
   savedArchivedCount: document.getElementById('savedArchivedCount'),
@@ -113,6 +114,7 @@ async function init() {
   await loadBookmarks();
   await loadHistory();
   await renderDashboard();
+  renderTopSites();
   setupEventListeners();
 }
 
@@ -415,6 +417,62 @@ function renderHistory() {
     </div>`;
   }).join('');
   attachImgFallbacks(elements.historyGrid);
+}
+
+// 最常访问：直接聚合 Chrome 自带的历史记录，按域名统计 visitCount
+async function renderTopSites() {
+  if (!elements.topSitesGrid) return;
+  if (!chrome.history) {
+    elements.topSitesGrid.innerHTML = '<div class="history-empty">当前浏览器不支持历史统计</div>';
+    return;
+  }
+  try {
+    const items = await chrome.history.search({ text: '', startTime: 0, maxResults: 100000 });
+    const byDomain = new Map();
+    for (const item of items) {
+      if (!item.url || item.url.startsWith('chrome://') || item.url.startsWith('chrome-extension://')) continue;
+      const hostname = safeGetHostname(item.url);
+      if (!hostname) continue;
+      const visits = item.visitCount || 0;
+      const entry = byDomain.get(hostname) || { count: 0, best: item };
+      entry.count += visits;
+      if (visits > (entry.best.visitCount || 0)) entry.best = item;
+      byDomain.set(hostname, entry);
+    }
+    const top = [...byDomain.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 10);
+    if (top.length === 0) {
+      elements.topSitesGrid.innerHTML = '<div class="history-empty">暂无访问统计</div>';
+      return;
+    }
+    elements.topSitesGrid.innerHTML = top.map(([hostname, entry]) => {
+      const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}`;
+      return `
+      <div class="history-item top-site-item" data-url="${escapeHtml(entry.best.url)}">
+        <div class="history-icon">
+          <img src="${escapeHtml(faviconUrl)}" alt="">
+        </div>
+        <div class="history-info">
+          <div class="history-title">${escapeHtml(hostname)}</div>
+          <div class="history-url">${escapeHtml(entry.best.title || hostname)}</div>
+        </div>
+        <div class="top-site-count" title="访问 ${entry.count} 次">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3.2C6.6 3.2 3 7.2 3 11.6c0 4 3 7.2 9 7.2s9-3.2 9-7.2c0-4.4-3.6-8.4-9-8.4z" fill="#b45309"/>
+            <path d="M5.6 9.6c1.4-2.8 3.8-4.4 6.4-4.4" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" opacity="0.7"/>
+            <path d="M6.2 13.8c.8.9 1.6 1.3 2.4 1.3h6.8c.8 0 1.6-.4 2.4-1.3.4.5.4 1.1 0 1.7-1 1.6-2.6 2.4-5.8 2.4s-4.8-.8-5.8-2.4c-.4-.6-.4-1.2 0-1.7z" fill="#451a03"/>
+            <circle cx="8.2" cy="9.4" r="1.3" fill="#451a03"/>
+          </svg>
+          <span class="merit-badge">${entry.count}</span>
+        </div>
+      </div>`;
+    }).join('');
+    attachImgFallbacks(elements.topSitesGrid);
+  } catch (err) {
+    console.error('Failed to load top sites:', err);
+    elements.topSitesGrid.innerHTML = '<div class="history-empty">历史统计加载失败</div>';
+  }
 }
 
 // 从历史记录中删除

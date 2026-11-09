@@ -381,6 +381,39 @@ header {
   transform: translateY(-1px);
 }
 
+.top-site-count {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.top-site-count svg {
+  width: 42px;
+  height: 42px;
+}
+
+.merit-badge {
+  position: absolute;
+  top: -2px;
+  right: -10px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 1.5px var(--bg-primary);
+}
+
 .history-icon {
   width: 32px;
   height: 32px;
