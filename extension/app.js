@@ -21,6 +21,24 @@ function safeGetHostname(url) {
   try { return new URL(url).hostname; } catch { return ''; }
 }
 
+// 站点图标走浏览器本地 favicon 缓存（_favicon 接口），不再每次新标签页去 google.com 拉图
+// 传完整 URL 或域名都行；缓存里没有时 Chrome 会回一个默认图标，不会卡住页面
+function faviconFor(urlOrDomain, size = 32) {
+  let pageUrl = urlOrDomain || '';
+  if (pageUrl && !/^[a-z][a-z0-9+.-]*:\/\//i.test(pageUrl)) pageUrl = `https://${pageUrl}/`;
+  try {
+    return chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=${size}`);
+  } catch {
+    return '';
+  }
+}
+
+// 老版本把 google.com 的图标地址存进了存储/默认项，这些地址现在取不到图，渲染时忽略
+const LEGACY_ICON_RE = /(?:google\.com\/(?:s2\/favicons|favicon\.ico)|gstatic\.com\/favicon)/i;
+function isLegacyIconUrl(icon) {
+  return !!icon && LEGACY_ICON_RE.test(icon);
+}
+
 // 获取标签页所属分组域名（file 归到 local-files）
 function domainOfUrl(url) {
   if (!url) return '';
@@ -38,11 +56,22 @@ function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// 图标彻底取不到时的兜底：本地内联 SVG，不联网、不留破图
+const FALLBACK_ICON = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.6">' +
+  '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"/>' +
+  '</svg>'
+);
+
 // MV3 CSP 禁止内联 onerror，图片加载失败的兜底改为渲染后挂事件
 function attachImgFallbacks(root) {
   if (!root) return;
   root.querySelectorAll('img').forEach(img => {
-    img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
+    img.addEventListener('error', () => {
+      if (img.dataset.fallbackApplied) { img.style.display = 'none'; return; }
+      img.dataset.fallbackApplied = '1';
+      img.src = FALLBACK_ICON;
+    }, { once: false });
   });
 }
 
@@ -110,12 +139,38 @@ const themes = {
 
 // 初始化
 async function init() {
-  await loadTheme();
-  await loadBookmarks();
-  await loadHistory();
-  await renderDashboard();
-  renderTopSites();
+  // 先挂事件、先出首屏，网络类任务全部丢到后面
   setupEventListeners();
+  loadWebFonts();
+  const googleIcon = document.querySelector('.google-icon');
+  if (googleIcon) googleIcon.src = faviconFor('https://www.google.com', 32);
+
+  // 这几个都只是读本地存储，并行跑，别串行等
+  await Promise.all([loadTheme(), loadBookmarks(), loadHistory()]);
+  await renderDashboard();
+
+  // 历史聚合要走一遍浏览记录，等首屏闲下来再做
+  scheduleTopSites();
+}
+
+// Google Fonts 不再写死在 head 里（网络不通时会阻塞首屏几秒），改成空闲时异步加载
+function loadWebFonts() {
+  if (!navigator.onLine) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.media = 'print';
+  link.href = 'https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=DM+Sans:wght@300;400;500;600&display=swap';
+  link.onload = () => { link.media = 'all'; };
+  link.onerror = () => { link.remove(); };
+  document.head.appendChild(link);
+}
+
+function scheduleTopSites() {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => renderTopSites(), { timeout: 2000 });
+  } else {
+    setTimeout(renderTopSites, 400);
+  }
 }
 
 // 加载主题
@@ -167,19 +222,17 @@ async function loadBookmarks() {
   try {
     const { bookmarks: savedBookmarks } = await chrome.storage.local.get('bookmarks');
     if (savedBookmarks && Array.isArray(savedBookmarks)) {
-      // 旧数据里 Gmail 图标地址取不到图，统一换成 s2 服务
+      // 旧数据里存的是 google.com 的取图地址，现在统一交给本地 favicon，清掉这些地址
       bookmarks = savedBookmarks.map(item => (
-        item.icon === 'https://mail.google.com/favicon.ico'
-          ? { ...item, icon: 'https://www.google.com/s2/favicons?domain=mail.google.com' }
-          : item
+        isLegacyIconUrl(item.icon) ? { ...item, icon: '' } : item
       ));
     } else {
       // 默认常用网站
       bookmarks = [
-        { id: '1', name: 'Google', url: 'https://www.google.com', icon: 'https://www.google.com/s2/favicons?domain=google.com' },
-        { id: '2', name: 'GitHub', url: 'https://github.com', icon: 'https://www.github.com/favicon.ico' },
-        { id: '3', name: 'YouTube', url: 'https://www.youtube.com', icon: 'https://www.youtube.com/favicon.ico' },
-        { id: '4', name: 'Gmail', url: 'https://mail.google.com', icon: 'https://www.google.com/s2/favicons?domain=mail.google.com' }
+        { id: '1', name: 'Google', url: 'https://www.google.com', icon: '' },
+        { id: '2', name: 'GitHub', url: 'https://github.com', icon: '' },
+        { id: '3', name: 'YouTube', url: 'https://www.youtube.com', icon: '' },
+        { id: '4', name: 'Gmail', url: 'https://mail.google.com', icon: '' }
       ];
       await saveBookmarks();
     }
@@ -203,8 +256,7 @@ function renderBookmarks() {
   if (!elements.bookmarksGrid) return;
   
   elements.bookmarksGrid.innerHTML = bookmarks.map(bookmark => {
-    const hostname = safeGetHostname(bookmark.url);
-    const iconSrc = bookmark.icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '');
+    const iconSrc = (bookmark.icon && !isLegacyIconUrl(bookmark.icon)) ? bookmark.icon : faviconFor(bookmark.url);
     return `
     <div class="bookmark-item" data-url="${escapeHtml(bookmark.url)}">
       <div class="bookmark-icon">
@@ -218,8 +270,7 @@ function renderBookmarks() {
   // 渲染设置页面中的常用网站列表
   if (elements.bookmarksList) {
     elements.bookmarksList.innerHTML = bookmarks.map(bookmark => {
-      const hostname = safeGetHostname(bookmark.url);
-      const iconSrc = bookmark.icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '');
+      const iconSrc = (bookmark.icon && !isLegacyIconUrl(bookmark.icon)) ? bookmark.icon : faviconFor(bookmark.url);
       return `
       <div class="bookmark-item-list">
         <div class="bookmark-icon">
@@ -295,22 +346,20 @@ async function saveBookmarkForm(e) {
     // 编辑现有网站
     const index = bookmarks.findIndex(b => b.id === id);
     if (index !== -1) {
-      const hostname = safeGetHostname(url);
       bookmarks[index] = {
         ...bookmarks[index],
         name,
         url,
-        icon: icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '')
+        icon: icon || ''
       };
     }
   } else {
     // 添加新网站
-    const hostname = safeGetHostname(url);
     bookmarks.push({
       id: Date.now().toString(),
       name,
       url,
-      icon: icon || (hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '')
+      icon: icon || ''
     });
   }
   
@@ -399,7 +448,7 @@ function renderHistory() {
   
   elements.historyGrid.innerHTML = browseHistory.map(item => {
     const hostname = safeGetHostname(item.url);
-    const faviconUrl = hostname ? `https://www.google.com/s2/favicons?domain=${hostname}` : '';
+    const faviconUrl = item.url ? faviconFor(item.url, 32) : '';
     return `
     <div class="history-item" data-url="${escapeHtml(item.url)}">
       <div class="history-icon">
@@ -447,7 +496,7 @@ async function renderTopSites() {
       return;
     }
     elements.topSitesGrid.innerHTML = top.map(([hostname, entry]) => {
-      const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}`;
+      const faviconUrl = faviconFor(entry.best.url, 32);
       return `
       <div class="history-item top-site-item" data-url="${escapeHtml(entry.best.url)}">
         <div class="history-icon">
@@ -1001,7 +1050,7 @@ function renderDomainCard(group) {
     const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
     let domain = safeGetHostname(tab.url);
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const faviconUrl = domain ? faviconFor(tab.url, 16) : '';
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
       <span class="chip-text">${escapeHtml(label)}</span>${dupeTag}

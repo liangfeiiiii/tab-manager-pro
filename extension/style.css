@@ -1342,8 +1342,15 @@ footer {
   to { opacity: 1; transform: translateY(0); }
 }
 
-header { animation: fadeUp 0.5s ease both; }
-.bookmarks-section { animation: fadeUp 0.5s ease 0.1s both; }
-.search-section { animation: fadeUp 0.5s ease 0.2s both; }
-.tabs-section { animation: fadeUp 0.5s ease 0.3s both; }
-footer { animation: fadeUp 0.5s ease 0.4s both; }
+header { animation: fadeUp 0.28s ease both; }
+.bookmarks-section { animation: fadeUp 0.28s ease 0.03s both; }
+.search-section { animation: fadeUp 0.28s ease 0.06s both; }
+.tabs-section { animation: fadeUp 0.28s ease 0.09s both; }
+footer { animation: fadeUp 0.28s ease 0.12s both; }
+
+/* 系统开了「减少动态效果」就直接显示，别再逐块淡入 */
+@media (prefers-reduced-motion: reduce) {
+  header, .bookmarks-section, .search-section, .tabs-section, footer {
+    animation: none;
+  }
+}
