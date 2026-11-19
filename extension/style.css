@@ -317,9 +317,13 @@ header {
   height: 14px;
 }
 
+/* 用 grid 而不是 columns：多列流的平衡算法会让不同列各自堆叠，
+   卡片高度一不齐，下一张的顶边就和别的卡片底边错开 */
 .missions {
-  columns: 280px;
-  column-gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  align-items: stretch;
   margin-bottom: 40px;
 }
 
@@ -335,8 +339,7 @@ header {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  break-inside: avoid;
-  margin-bottom: 12px;
+  height: 100%;
 }
 
 /* Closing animation — card scales down and fades out */
@@ -733,6 +736,9 @@ body.dark-theme .visit-count {
 
 .mission-content {
   min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .mission-top {
@@ -875,7 +881,9 @@ body.dark-theme .visit-count {
 .actions {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
+  /* 卡片被拉伸到同高时，按钮统一贴底，横向才对得齐 */
+  margin-top: auto;
+  padding-top: 10px;
 }
 
 .action-btn {
@@ -1270,7 +1278,7 @@ footer {
   }
 
   .missions {
-    columns: 1;
+    grid-template-columns: 1fr;
   }
   
   .themes-grid {
@@ -1285,8 +1293,7 @@ footer {
   justify-content: center;
   padding: 40px 20px;
   text-align: center;
-  break-inside: avoid;
-  margin-bottom: 12px;
+  grid-column: 1 / -1;
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
   border-radius: 8px;
