@@ -468,6 +468,12 @@ function renderHistory() {
   attachImgFallbacks(elements.historyGrid);
 }
 
+// 访问次数上千以后数字太宽，超过一万折成「1.2万」
+function formatVisitCount(count) {
+  if (count >= 10000) return `${(count / 10000).toFixed(1).replace(/\.0$/, '')}万`;
+  return String(count);
+}
+
 // 最常访问：直接聚合 Chrome 自带的历史记录，按域名统计 visitCount
 async function renderTopSites() {
   if (!elements.topSitesGrid) return;
@@ -506,15 +512,7 @@ async function renderTopSites() {
           <div class="history-title">${escapeHtml(hostname)}</div>
           <div class="history-url">${escapeHtml(entry.best.title || hostname)}</div>
         </div>
-        <div class="top-site-count" title="访问 ${entry.count} 次">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 3.2C6.6 3.2 3 7.2 3 11.6c0 4 3 7.2 9 7.2s9-3.2 9-7.2c0-4.4-3.6-8.4-9-8.4z" fill="#b45309"/>
-            <path d="M5.6 9.6c1.4-2.8 3.8-4.4 6.4-4.4" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" opacity="0.7"/>
-            <path d="M6.2 13.8c.8.9 1.6 1.3 2.4 1.3h6.8c.8 0 1.6-.4 2.4-1.3.4.5.4 1.1 0 1.7-1 1.6-2.6 2.4-5.8 2.4s-4.8-.8-5.8-2.4c-.4-.6-.4-1.2 0-1.7z" fill="#451a03"/>
-            <circle cx="8.2" cy="9.4" r="1.3" fill="#451a03"/>
-          </svg>
-          <span class="merit-badge">${entry.count}</span>
-        </div>
+        <span class="visit-count" title="累计访问 ${entry.count} 次">${formatVisitCount(entry.count)}</span>
       </div>`;
     }).join('');
     attachImgFallbacks(elements.topSitesGrid);

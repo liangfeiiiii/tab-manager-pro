@@ -381,37 +381,25 @@ header {
   transform: translateY(-1px);
 }
 
-.top-site-count {
-  position: relative;
+/* 访问次数：一枚安静的胶囊数字，替代原来的木鱼徽章 */
+.visit-count {
   flex-shrink: 0;
-  width: 46px;
-  height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.top-site-count svg {
-  width: 42px;
-  height: 42px;
-}
-
-.merit-badge {
-  position: absolute;
-  top: -2px;
-  right: -10px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 10px;
-  background: #ff3b30;
-  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(179, 90, 90, 0.1);
+  color: var(--accent-rose);
   font-size: 12px;
   font-weight: 600;
-  line-height: 20px;
-  text-align: center;
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 1.5px var(--bg-primary);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* 深色底上玫瑰红太闷，提亮一档 */
+body.dark-theme .visit-count {
+  background: rgba(217, 138, 138, 0.16);
+  color: #d98a8a;
 }
 
 .history-icon {
