@@ -1,17 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#c8713a;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#5a7a62;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27221e" />
+      <stop offset="100%" stop-color="#161311" />
+    </linearGradient>
+    <linearGradient id="amber" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d87f47" />
+      <stop offset="100%" stop-color="#be642e" />
     </linearGradient>
   </defs>
-  <rect width="128" height="128" rx="24" fill="url(#gradient)" />
-  <g fill="white">
-    <rect x="32" y="24" width="64" height="16" rx="4" />
-    <rect x="32" y="52" width="48" height="16" rx="4" />
-    <rect x="32" y="80" width="32" height="16" rx="4" />
-    <circle cx="100" cy="32" r="8" />
-    <circle cx="84" cy="60" r="8" />
-    <circle cx="68" cy="88" r="8" />
-  </g>
+  <!-- 满幅圆角深墨底板 -->
+  <rect x="0" y="0" width="128" height="128" rx="28" fill="url(#bg)" />
+  <rect x="1" y="1" width="126" height="126" rx="27" fill="none" stroke="#f8f5f0" stroke-opacity="0.12" stroke-width="2" />
+  <!-- 后方层叠标签：由繁入简 -->
+  <rect x="38" y="24" width="52" height="10" rx="5" fill="#f8f5f0" fill-opacity="0.3" />
+  <rect x="28" y="40" width="72" height="11" rx="5.5" fill="#f8f5f0" fill-opacity="0.58" />
+  <!-- 主卡片与中央「一」字 -->
+  <rect x="18" y="57" width="92" height="48" rx="14" fill="#f8f5f0" />
+  <rect x="38" y="76" width="52" height="10" rx="5" fill="url(#amber)" />
 </svg>

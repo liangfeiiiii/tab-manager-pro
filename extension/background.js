@@ -27,7 +27,7 @@ async function ensureDefaults() {
 }
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
-  console.log(`Tab Manager Pro ${reason === 'install' ? 'installed' : 'updated'}.`);
+  console.log(`归一 ${reason === 'install' ? 'installed' : 'updated'}.`);
 
   try {
     await ensureDefaults();

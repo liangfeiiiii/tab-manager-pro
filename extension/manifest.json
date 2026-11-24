@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Tab Manager Pro",
+  "name": "归一",
   "version": "1.0.0",
   "description": "多主题新标签页扩展，集成标签分组、Google 搜索和常用网站快捷方式",
   "permissions": ["tabs", "activeTab", "storage", "sidePanel", "history", "favicon"],
@@ -8,7 +8,7 @@
   "side_panel": { "default_path": "index.html" },
   "background": { "service_worker": "background.js" },
   "action": {
-    "default_title": "Tab Manager Pro",
+    "default_title": "归一",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png"

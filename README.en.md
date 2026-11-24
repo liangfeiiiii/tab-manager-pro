@@ -1,12 +1,20 @@
-# Tab Manager Pro
+# 归一 (Guiyi)
 
 **Manage your tabs, boost your browsing efficiency.**
 
-Tab Manager Pro is a Chrome extension that replaces your new tab page with a powerful dashboard to help you better manage all your open tabs.
+归一 (Guiyi) is a Chrome extension that replaces your new tab page with a powerful dashboard to help you better manage all your open tabs.
 
 ## Language
 
 - [中文](README.md) | [English](README.en.md)
+
+---
+
+## Preview
+
+![Guiyi Light Theme](assets/preview-light.png)
+
+![Guiyi Dark Theme](assets/preview-dark.png)
 
 ---
 
@@ -42,7 +50,7 @@ git clone https://github.com/liangfeiiiii/tab-manager-pro.git
 
 3. **Open a new tab**
 
-You'll see the Tab Manager Pro interface.
+You'll see the 归一 interface.
 
 ---
 
@@ -60,7 +68,9 @@ You'll see the Tab Manager Pro interface.
 
 ## License
 
-MIT
+Distributed under the [MIT License](LICENSE). See [LICENSE](LICENSE) for more information.
+
+Copyright © 2026 FS Design
 
 ---
 
